@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+        #connection-status {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background-color: red;
+            transition: all 0.5s linear;
+        }
+        li {
+            border-bottom: 1px solid #000000;
+            padding: 10px;
+        }
+        li:nth-child(even) {
+            background-color: lightgray;
+        }
+        li:nth-child(odd) {
+            background-color: gray;
+        }
+        ul {
+            padding-bottom: 20px;
+            list-style: none;
+            white-space: pre-wrap;
+        }
+        #messages {
+            height: 70vh;
+            padding: 0%;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <script type="text/javascript">
+        $(document).ready(function() {
+            socket = io.connect("http://localhost:5000");
+            socket.on('connect', connect);
+            socket.on('disconnect', disconnect);
+            socket.on('message', messageReceived);
+            $('#sendBtn').on('click', sendMsg);
+            $('#message').on('keypress', sendKeypress);
+
+            function messageReceived(data) {
+                //console.log(data.username);
+                
+                // TODO: Scroll to bottom, only if user is at the bottom!
+                
+                var newMsg = $('<li>').hide();
+                newMsg.text(data.time + data.username + ': ' + data.message);
+                $('#message-list').append(newMsg);
+                newMsg.show('fast');
+
+
+                //$('#message-list').append($('<li>').text(data));
+            }
+
+            function disconnect() {
+                $('#connection-status').text('Connection status: Disconnected');
+                $('#connection-status').css('background-color', 'red');
+            }
+
+            function connect() {
+                socket.send("User connected!");
+                $('#connection-status').text('Connection status: Connected');
+                $('#connection-status').css('background-color', 'green');
+            }
+
+            function sendKeypress(e) {
+                if (e.which == 13 && !e.shiftKey) {
+                    sendMsg();
+                    // Don't allow enter to create a new line
+                    return false;
+                }
+            }
+
+            function sendMsg() {
+                var username = $('#username').val();
+                var message = $('#message').val();
+
+                if (message == '') {
+                    return;
+                }
+
+                socket.emit("message", {username, message});
+                //socket.send($('#username').val() + ': ' + $('#message').val());
+                $('#message').val('');
+            }
+        })
+    </script>
+    <!-- <h2 style="text-align: center;">Python chat</h2>
+    <hr>
+    -->
+    <div id="connection-status">Connection status: Disconnected</div>
+    <div id="messages">
+        <!-- Messages will be added here -->
+        <ul id="message-list"></ul>
+    </div>
+    <hr>
+    <div id="input-area">
+        <input type="text" id="username" placeholder="Username">
+        <!--<input type="text" id="message" placeholder="Message"> -->
+        <textarea id="message" rows="3" placeholder="Message"></textarea>
+        <button id="sendBtn">Send</button>
+    </div>
+</body>
+</html>
