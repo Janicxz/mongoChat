@@ -6,6 +6,8 @@
     <title>Python chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.14.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.14.1/themes/base/theme.min.css"></style>
     <style>
         #connection-status {
             text-align: center;
@@ -43,21 +45,58 @@
             socket.on('connect', connect);
             socket.on('disconnect', disconnect);
             socket.on('message', messageReceived);
+            socket.on('login', function(data) {
+                if (data.logged_in == true) {
+                    $('#login-dialog').dialog('close');
+                } else {
+                    alert('Login failed, username or password incorrect.');
+                }
+            });
+            socket.on('register', function(data) {
+                if (data.success == true) {
+                    $('#login-dialog').dialog('close');
+                } else {
+                    alert('Registration failed, username already exists.');
+                }
+            });
             $('#sendBtn').on('click', sendMsg);
             $('#message').on('keypress', sendKeypress);
+            // TODO: Add login dialog
+            $('#login-dialog').dialog({autoOpen: true, modal: true});
+            $('#loginBtn').on('click', function() {
+                var username = $('#login-username').val();
+                var password = $('#login-password').val();
+                socket.emit('login', {username, password});
+            });
+            $('#registerBtn').on('click', function() {
+                var username = $('#login-username').val();
+                var password = $('#login-password').val();
+                socket.emit('register', {username, password});
+            });
 
             function messageReceived(data) {
                 //console.log(data.username);
+                //console.log(data);
                 
-                // TODO: Scroll to bottom, only if user is at the bottom!
+                // If the message is 'scroll down', scroll down the chatlog
+                if (data == 'scroll down') {
+                    console.log('scrolling down');
+                    //$('#messages').scrollTop($('#messages').prop('scrollHeight'));
+                    $('#messages').animate( {scrollTop: $('#messages').prop('scrollHeight')}, 1000);
+                    return;
+                }
                 
                 var newMsg = $('<li>').hide();
-                newMsg.text(data.time + data.username + ': ' + data.message);
+                if (data.username == 'Server') {
+                    newMsg.css('background-color', 'lightblue');
+                }
+                newMsg.text(data.time + " " + data.username + ': ' + data.message);
                 $('#message-list').append(newMsg);
                 newMsg.show('fast');
-
-
                 //$('#message-list').append($('<li>').text(data));
+                /*if ($('#message-list')[0].scrollHeight - $('#message-list').scrollTop() == $('#message-list').innerHeight()) {
+                    $('#messages').animate( {scrollTop: $('#messages').prop('scrollHeight')}, 1000);
+                }*/
             }
 
             function disconnect() {
@@ -80,14 +119,14 @@
             }
 
             function sendMsg() {
-                var username = $('#username').val();
+                //var username = $('#username').val();
                 var message = $('#message').val();
 
                 if (message == '') {
                     return;
                 }
 
-                socket.emit("message", {username, message});
+                socket.emit("message", {message});
                 //socket.send($('#username').val() + ': ' + $('#message').val());
                 $('#message').val('');
             }
@@ -97,13 +136,26 @@
     <hr>
     -->
     <div id="connection-status">Connection status: Disconnected</div>
+
+    <div id="login-dialog" title="Login or register to chat" hidden="hidden">
+        <form id="login-form">
+            <input type="text" id="login-username" placeholder="Username">
+            <input type="password" id="login-password" placeholder="Password">
+            <div id="button-group">
+                <button type="button" id="loginBtn">Login</button>
+                <button type="button" id="registerBtn">Register</button>
+            </div>
+        </form>
+    </div>
+
     <div id="messages">
         <!-- Messages will be added here -->
         <ul id="message-list"></ul>
     </div>
+
     <hr>
     <div id="input-area">
-        <input type="text" id="username" placeholder="Username">
+        <!--<input type="text" id="username" placeholder="Username"> -->
         <!--<input type="text" id="message" placeholder="Message"> -->
         <textarea id="message" rows="3" placeholder="Message"></textarea>
         <button id="sendBtn">Send</button>
