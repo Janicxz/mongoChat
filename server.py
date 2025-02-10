@@ -5,7 +5,7 @@ from flask_socketio import SocketIO, send, emit
 
 from datetime import datetime
 import hashlib
-import random
+import random, uuid
 
 app = Flask(__name__)
 app.config['SECRET'] = "secret123!"
@@ -19,13 +19,14 @@ message_of_the_day = "Welcome to the chatroom!"
 
 def generate_session_id(username):
     # Generate session ID from username and random integer
-    session_id = username + str(random.randint(0, 1000))
-    session_id = hashlib.sha256(session_id.encode()).hexdigest()
+    session_id = str(uuid.uuid4())
+    #session_id = username + str(random.randint(0, 1000))
+    #session_id = hashlib.sha256(session_id.encode()).hexdigest()
 
     # If session ID already exists keep generating new ones until a unique one is found
-    while users_collection.find_one({"session_id": session_id}) != None:
-        session_id = username + str(random.randint(0, 1000))
-        session_id = hashlib.sha256(session_id.encode()).hexdigest()
+    #while users_collection.find_one({"session_id": session_id}) != None:
+    #    session_id = username + str(random.randint(0, 1000))
+    #    session_id = hashlib.sha256(session_id.encode()).hexdigest()
     users_collection.update_one({"username": username}, {"$set": {"session_id": session_id}})
     print("Session ID generated for user: " + username)
     return session_id
@@ -49,7 +50,7 @@ def handle_connect(connectMsg):
             'time': msg['time']
         }
         msgArray.append(msgDict)
-    msgArray.append({'username': 'Server', 'message': message_of_the_day, 'time': datetime.now().strftime("[%H:%M]")})
+    msgArray.append({'username': 'Server', 'message': message_of_the_day, 'time': datetime.now().isoformat(timespec='minutes')})
     # Reverse the array to send the messages in the correct order
     for msg in msgArray[::-1]:
         emit("message", msg, broadcast=False)
@@ -129,7 +130,8 @@ def handle_message(message):
         emit("error", {'logged_in' : False}, broadcast=False)
         return
 
-    time = "[" + datetime.now().strftime("%d.%m.%Y %H:%M") + "] "
+    #time = "[" + datetime.now().strftime("%d.%m.%Y %H:%M") + "] "
+    time = datetime.now().isoformat(timespec='minutes')
     username = session['username']#message['username']
     message = message['message']
     print("Message received: " + time + " " + username + ": " + message)

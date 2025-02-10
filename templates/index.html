@@ -121,7 +121,8 @@
                 if (data.username == 'Server') {
                     newMsg.css('background-color', 'lightblue');
                 }
-                newMsg.text(data.time + " " + data.username + ': ' + data.message);
+                localTime = new Date(data.time).toLocaleTimeString(window.navigator.language, {year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute:'2-digit'});
+                newMsg.text(localTime + " " + data.username + ': ' + data.message);
                 $('#message-list').append(newMsg);
                 newMsg.show('fast');
                 //$('#message-list').append($('<li>').text(data));
