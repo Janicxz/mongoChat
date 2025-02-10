@@ -42,6 +42,12 @@
 <body>
     <script type="text/javascript">
         $(document).ready(function() {
+            $('#logoutBtn').on('click', function() {
+                setCookie('mongoChat_session_id', '');
+                socket.emit('logout');
+                $('#logoutBtn').hide();
+                $('#login-dialog').dialog('open');
+            });
             socket = io.connect(location.hostname + ':5000');
             socket.on('connect', connect);
             socket.on('disconnect', disconnect);
@@ -55,12 +61,14 @@
             socket.on('login', function(data) {
                 if (data.logged_in == true) {
                     $('#login-dialog').dialog('close');
-                    console.log("Logged in");
+                    console.log("User logged in");
+                    $('#logoutBtn').show();
                     if (data.update_session_id) {
-                        setCookie('mongoChat_session_id', data.session_id);
-                        console.log("Updating session ID cookie");
+                        if (document.getElementById('stay_logged_in').checked) {
+                            setCookie('mongoChat_session_id', data.session_id);
+                            console.log("Updating session ID cookie");
+                        }
                     }
-
                 } else {
                     alert('Login failed, username or password incorrect.');
                 }
@@ -68,8 +76,11 @@
             socket.on('register', function(data) {
                 if (data.success == true) {
                     $('#login-dialog').dialog('close');
-                    setCookie('mongoChat_session_id', data.session_id);
-                    console.log("Updating session ID cookie on registeration");
+                    console.log("User registered");
+                    if (document.getElementById('stay_logged_in').checked)  {
+                        setCookie('mongoChat_session_id', data.session_id);
+                        console.log("Storing session ID cookie.");
+                    }
                 } else {
                     alert('Registration failed, username already exists.');
                 }
@@ -181,6 +192,8 @@
                 <button type="button" id="loginBtn">Login</button>
                 <button type="button" id="registerBtn">Register</button>
             </div>
+            <input type="checkbox" id="stay_logged_in" checked="checked"/>
+            <label for="stay_logged_in">Stay logged in</label>
         </form>
     </div>
 
@@ -195,7 +208,7 @@
         <!--<input type="text" id="message" placeholder="Message"> -->
         <textarea id="message" rows="3" placeholder="Message"></textarea>
         <button id="sendBtn">Send</button>
-        <button id="logoutBtn" style="float:right">Log out</button>
+        <button id="logoutBtn" style="float:right" hidden="hidden">Log out</button>
     </div>
 </body>
 </html>

@@ -79,7 +79,16 @@ def user_register(user):
     session['username'] = username
     password = ""
     # TODO: Generate session ID, save it to users table and send it to client so they don't have to keep logging in.
-
+@socketio.on('logout')
+def user_logout():
+    if session['logged_in'] == False:
+        print("User not logged in, logout not possible")
+        return
+    username = session['username']
+    users_collection.update_one({"username": username}, {"$set": {"session_id": ""}})
+    session['logged_in'] = False
+    session['username'] = ""
+    print("User logged out: " + username)
 
 @socketio.on('login')
 def user_login(user):
