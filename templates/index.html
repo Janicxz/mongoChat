@@ -45,6 +45,12 @@
             socket.on('connect', connect);
             socket.on('disconnect', disconnect);
             socket.on('message', messageReceived);
+            socket.on('error', function(data) {
+                if(data.logged_in == false) {
+                    alert('You need to login to chat.');
+                    $('#login-dialog').dialog('open');
+                }
+            });
             socket.on('login', function(data) {
                 if (data.logged_in == true) {
                     $('#login-dialog').dialog('close');

@@ -88,9 +88,10 @@ def handle_message(message):
     
     if session['logged_in'] == False:
         print("User not logged in, message not sent")
+        emit("error", {'logged_in' : False}, broadcast=False)
         return
 
-    time = "[" + datetime.now().strftime("%H:%M") + "] "
+    time = "[" + datetime.now().strftime("%d.%m.%Y %H:%M") + "] "
     username = session['username']#message['username']
     message = message['message']
     print("Message received: " + time + " " + username + ": " + message)
