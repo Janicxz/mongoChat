@@ -20,13 +20,7 @@ message_of_the_day = "Welcome to the chatroom!"
 def generate_session_id(username):
     # Generate session ID from username and random integer
     session_id = str(uuid.uuid4())
-    #session_id = username + str(random.randint(0, 1000))
-    #session_id = hashlib.sha256(session_id.encode()).hexdigest()
 
-    # If session ID already exists keep generating new ones until a unique one is found
-    #while users_collection.find_one({"session_id": session_id}) != None:
-    #    session_id = username + str(random.randint(0, 1000))
-    #    session_id = hashlib.sha256(session_id.encode()).hexdigest()
     users_collection.update_one({"username": username}, {"$set": {"session_id": session_id}})
     print("Session ID generated for user: " + username)
     return session_id
@@ -61,24 +55,25 @@ def handle_connect(connectMsg):
 @socketio.on('register')
 def user_register(user):
     username = user['username']
+    username_lower = username.lower()
     password = user['password']
     password = hashlib.sha256(password.encode()).hexdigest()
 
     print("User register attempt: " + username)
 
-    if users_collection.find_one({"username": username}) != None:
+    # TODO: Convert usernames to lowercase and check for duplicates
+    if users_collection.find_one({"username_lower": username_lower}) != None:
         print("User already exists: " + username)
         emit("register", {'success' : False}, broadcast=False)
         return
 
-    users_collection.insert_one({"username": username, "password": password})
+    users_collection.insert_one({"username": username, "username_lower": username_lower, "password": password})
     session_id = generate_session_id(username)
     emit("register", {'success' : True, 'session_id': session_id}, broadcast=False)
     print("User registered: " + username)
     session['logged_in'] = True
     session['username'] = username
     password = ""
-    # TODO: Generate session ID, save it to users table and send it to client so they don't have to keep logging in.
 @socketio.on('logout')
 def user_logout():
     if session['logged_in'] == False:
@@ -114,7 +109,6 @@ def user_login(user):
     print("User login attempt: " + username)
 
     if users_collection.find_one({"username": username, "password": password}) != None or login_with_session_id:
-        # TODO: Generate session ID, save it to users table and send it to client so they don't have to keep logging in.
         session_id = ""
         if not login_with_session_id:
             session_id = generate_session_id(username)
