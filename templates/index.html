@@ -27,6 +27,7 @@
             background-color: gray;
         }
         ul {
+            padding: 0px;
             padding-bottom: 20px;
             list-style: none;
             white-space: pre-wrap;
@@ -41,7 +42,7 @@
 <body>
     <script type="text/javascript">
         $(document).ready(function() {
-            socket = io.connect("http://localhost:5000");
+            socket = io.connect(location.hostname + ':5000');
             socket.on('connect', connect);
             socket.on('disconnect', disconnect);
             socket.on('message', messageReceived);
@@ -54,6 +55,12 @@
             socket.on('login', function(data) {
                 if (data.logged_in == true) {
                     $('#login-dialog').dialog('close');
+                    console.log("Logged in");
+                    if (data.update_session_id) {
+                        setCookie('mongoChat_session_id', data.session_id);
+                        console.log("Updating session ID cookie");
+                    }
+
                 } else {
                     alert('Login failed, username or password incorrect.');
                 }
@@ -61,6 +68,8 @@
             socket.on('register', function(data) {
                 if (data.success == true) {
                     $('#login-dialog').dialog('close');
+                    setCookie('mongoChat_session_id', data.session_id);
+                    console.log("Updating session ID cookie on registeration");
                 } else {
                     alert('Registration failed, username already exists.');
                 }
@@ -79,6 +88,22 @@
                 var password = $('#login-password').val();
                 socket.emit('register', {username, password});
             });
+
+            function setCookie(name, value) {
+                document.cookie = name + '=' + value + ';';
+            }
+            function getCookie(name) {
+                var cookie = document.cookie.split(';').find(c => c.startsWith(name));
+                if (cookie) {
+                    cookie = cookie.split('=')[1];
+                    if (cookie == '') {
+                        return null;
+                    }
+                    return cookie;
+                }
+                
+                return null;
+            }
 
             function messageReceived(data) {
                 //console.log(data.username);
@@ -114,6 +139,10 @@
                 socket.send("User connected!");
                 $('#connection-status').text('Connection status: Connected');
                 $('#connection-status').css('background-color', 'green');
+
+                if (getCookie('mongoChat_session_id') != null) {
+                    socket.emit('login', {session_id: getCookie('mongoChat_session_id')});
+                }
             }
 
             function sendKeypress(e) {
@@ -165,6 +194,7 @@
         <!--<input type="text" id="message" placeholder="Message"> -->
         <textarea id="message" rows="3" placeholder="Message"></textarea>
         <button id="sendBtn">Send</button>
+        <button id="logoutBtn" style="float:right">Log out</button>
     </div>
 </body>
 </html>

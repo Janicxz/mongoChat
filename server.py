@@ -1,10 +1,11 @@
 from pymongo import MongoClient
-from flask import Flask, render_template, session
+from flask import Flask, render_template, session, request
 
 from flask_socketio import SocketIO, send, emit
 
 from datetime import datetime
 import hashlib
+import random
 
 app = Flask(__name__)
 app.config['SECRET'] = "secret123!"
@@ -15,6 +16,19 @@ db = mongoclient["mongoChat"]
 chatlog_collection = db.chatlog
 users_collection = db.users
 message_of_the_day = "Welcome to the chatroom!"
+
+def generate_session_id(username):
+    # Generate session ID from username and random integer
+    session_id = username + str(random.randint(0, 1000))
+    session_id = hashlib.sha256(session_id.encode()).hexdigest()
+
+    # If session ID already exists keep generating new ones until a unique one is found
+    while users_collection.find_one({"session_id": session_id}) != None:
+        session_id = username + str(random.randint(0, 1000))
+        session_id = hashlib.sha256(session_id.encode()).hexdigest()
+    users_collection.update_one({"username": username}, {"$set": {"session_id": session_id}})
+    print("Session ID generated for user: " + username)
+    return session_id
 
 @socketio.on('connect')
 def handle_connect(connectMsg):
@@ -57,24 +71,48 @@ def user_register(user):
         return
 
     users_collection.insert_one({"username": username, "password": password})
-    emit("register", {'success' : True}, broadcast=False)
+    session_id = generate_session_id(username)
+    emit("register", {'success' : True, 'session_id': session_id}, broadcast=False)
     print("User registered: " + username)
     session['logged_in'] = True
     session['username'] = username
     password = ""
+    # TODO: Generate session ID, save it to users table and send it to client so they don't have to keep logging in.
+
 
 @socketio.on('login')
 def user_login(user):
-    username = user['username']
-    password = user['password']
-    password = hashlib.sha256(password.encode()).hexdigest()
+    login_with_session_id = False
+    if 'session_id' in user:
+        _user = users_collection.find_one({"session_id": user['session_id']})
+        if _user != None:
+            username = _user['username']
+            password = ""
+            login_with_session_id = True
+            print("User logged in with sessionID: " + username)
+        else:
+            print("User failed to login with sessionID: ")
+
+
+    if not login_with_session_id:
+        if 'username' not in user or 'password' not in user:
+            print("User login attempt failed, missing username or password")
+            return
+        username = user['username']
+        password = user['password']
+        password = hashlib.sha256(password.encode()).hexdigest()
     print("User login attempt: " + username)
 
-    if users_collection.find_one({"username": username, "password": password}) != None:
-        emit("login", {'logged_in' : True}, broadcast=False)
+    if users_collection.find_one({"username": username, "password": password}) != None or login_with_session_id:
+        # TODO: Generate session ID, save it to users table and send it to client so they don't have to keep logging in.
+        session_id = ""
+        if not login_with_session_id:
+            session_id = generate_session_id(username)
+        emit("login", {'logged_in' : True, 'session_id': session_id, 'update_session_id': not login_with_session_id}, broadcast=False)
         print("User logged in: " + username)
         session['logged_in'] = True
         session['username'] = username
+        
     else:
         emit("login", {'logged_in' : False}, broadcast=False)
         print("User failed to login: " + username)
@@ -116,4 +154,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == "__main__":
-    socketio.run(app, host="localhost")
+    socketio.run(app, host="localhost", port=5000)
