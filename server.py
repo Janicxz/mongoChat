@@ -88,7 +88,7 @@ def user_logout():
 @socketio.on('login')
 def user_login(user):
     login_with_session_id = False
-    if 'session_id' in user:
+    if 'session_id' in user and user['session_id'] != "":
         _user = users_collection.find_one({"session_id": user['session_id']})
         if _user != None:
             username = _user['username']
