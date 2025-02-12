@@ -49,15 +49,16 @@
                 $('#login-dialog').dialog('open');
             });
             socket = io.connect(location.hostname + ':5000');
+            socket.on('online_users', show_online_users)
             socket.on('connect', connect);
             socket.on('disconnect', disconnect);
             socket.on('message', messageReceived);
-            socket.on('error', function(data) {
-                if(data.logged_in == false) {
-                    alert('You need to login to chat.');
-                    $('#login-dialog').dialog('open');
-                }
-            });
+                socket.on('error', function(data) {
+                    if(data.logged_in == false) {
+                        alert('You need to login to chat.');
+                        $('#login-dialog').dialog('open');
+                    }
+                });
             socket.on('login', function(data) {
                 if (data.logged_in == true) {
                     $('#login-dialog').dialog('close');
@@ -99,6 +100,12 @@
                 var password = $('#login-password').val();
                 socket.emit('register', {username, password});
             });
+            $('#onlineUsersBtn').on('click', function() {
+                socket.emit('online_users');
+            });
+            setInterval(function() {
+                socket.emit('ping');
+            }, 60000);
 
             function setCookie(name, value) {
                 document.cookie = name + '=' + value + ';';
@@ -112,14 +119,25 @@
                     }
                     return cookie;
                 }
-                
+
                 return null;
+            }
+            function show_online_users(online_users_list) {
+                console.log(online_users_list)
+                var online_users_string = 'Users online: \n';
+                for (var i = 0; i < online_users_list.length; i++) {
+                    online_users_string += online_users_list[i];
+                    if (i < online_users_list.length - 1) {
+                        online_users_string += ', ';
+                    }
+                }
+                alert(online_users_string);
             }
 
             function messageReceived(data) {
                 //console.log(data.username);
                 //console.log(data);
-                
+
                 // If the message is 'scroll down', scroll down the chatlog
                 if (data == 'scroll down') {
                     console.log('scrolling down');
@@ -208,6 +226,8 @@
         <!--<input type="text" id="message" placeholder="Message"> -->
         <textarea id="message" rows="3" placeholder="Message"></textarea>
         <button id="sendBtn">Send</button>
+        
+        <button id="onlineUsersBtn" style="float:right">Show users online</button>
         <button id="logoutBtn" style="float:right" hidden="hidden">Log out</button>
     </div>
 </body>

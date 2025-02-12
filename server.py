@@ -3,7 +3,7 @@ from flask import Flask, render_template, session, request
 
 from flask_socketio import SocketIO, send, emit
 
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import hashlib
 import random, uuid
 
@@ -16,7 +16,13 @@ db = mongoclient["mongoChat"]
 chatlog_collection = db.chatlog
 users_collection = db.users
 message_of_the_day = "Welcome to the chatroom!"
+users_last_seen = {}
 
+def update_last_seen(username, logout=False):
+    if logout:
+        users_last_seen.pop(username)
+        return
+    users_last_seen[username] = get_utc_date()
 def generate_session_id(username):
     # Generate session ID from username and random integer
     session_id = str(uuid.uuid4())
@@ -24,7 +30,11 @@ def generate_session_id(username):
     users_collection.update_one({"username": username}, {"$set": {"session_id": session_id}})
     print("Session ID generated for user: " + username)
     return session_id
-
+def get_utc_date():
+    # MongoDB stores datetime values in coordinated universal time (UTC)
+    return datetime.now(tz=timezone.utc)#.isoformat(timespec='minutes')
+def get_iso_date():
+    return get_utc_date().isoformat(timespec='minutes')
 @socketio.on('connect')
 def handle_connect(connectMsg):
     try:
@@ -41,16 +51,39 @@ def handle_connect(connectMsg):
         msgDict = {
             'username': msg['username'],
             'message': msg['message'],
-            'time': msg['time']
+            'time': msg['time'].isoformat(timespec='minutes')
         }
         msgArray.append(msgDict)
-    msgArray.append({'username': 'Server', 'message': message_of_the_day, 'time': datetime.now().isoformat(timespec='minutes')})
+    msgArray.append({'username': 'Server', 'message': message_of_the_day, 'time': get_iso_date()})
     # Reverse the array to send the messages in the correct order
     for msg in msgArray[::-1]:
         emit("message", msg, broadcast=False)
     # Send a message to the user to scroll down the chatlog
     send("scroll down", broadcast=False)
     session['logged_in'] = False
+
+@socketio.on('online_users')
+def online_users():
+    print("Online users list requested")
+    #users = users_collection.find({"session_id": {"$ne": ""}})
+    online_users = []
+    for username in users_last_seen:
+        last_seen_time = users_last_seen[username]
+        two_minutes = timedelta(minutes=2)
+        print("Checking user: " + username + " last seen time difference: " + str(get_utc_date() - last_seen_time))
+        if get_utc_date() - last_seen_time < two_minutes:
+            online_users.append(username)
+    emit("online_users", online_users, broadcast=False)
+
+@socketio.on('ping')
+def user_ping():
+    if 'username' not in session or session['username'] == "" and 'logged_in' not in session:
+        return
+    if session['logged_in'] == False:
+        return
+    username = session['username']
+    update_last_seen(username)
+    print("Received ping from user: " + username)
 
 @socketio.on('register')
 def user_register(user):
@@ -61,7 +94,6 @@ def user_register(user):
 
     print("User register attempt: " + username)
 
-    # TODO: Convert usernames to lowercase and check for duplicates
     if users_collection.find_one({"username_lower": username_lower}) != None:
         print("User already exists: " + username)
         emit("register", {'success' : False}, broadcast=False)
@@ -73,6 +105,7 @@ def user_register(user):
     print("User registered: " + username)
     session['logged_in'] = True
     session['username'] = username
+    update_last_seen(username)
     password = ""
 @socketio.on('logout')
 def user_logout():
@@ -82,6 +115,7 @@ def user_logout():
     username = session['username']
     users_collection.update_one({"username": username}, {"$set": {"session_id": ""}})
     session['logged_in'] = False
+    update_last_seen(username, logout=True)
     session['username'] = ""
     print("User logged out: " + username)
 
@@ -116,7 +150,8 @@ def user_login(user):
         print("User logged in: " + username)
         session['logged_in'] = True
         session['username'] = username
-        
+        # TODO: Finish users online list based on when they were last seen online
+        update_last_seen(username)
     else:
         emit("login", {'logged_in' : False}, broadcast=False)
         print("User failed to login: " + username)
@@ -134,7 +169,7 @@ def handle_message(message):
         return
 
     #time = "[" + datetime.now().strftime("%d.%m.%Y %H:%M") + "] "
-    time = datetime.now().isoformat(timespec='minutes')
+    time = get_iso_date()
     username = session['username']#message['username']
     message = message['message']
     print("Message received: " + time + " " + username + ": " + message)
@@ -144,7 +179,7 @@ def handle_message(message):
 
     # Save message to MongoDB
     try:
-        chatlog_collection.insert_one({"username": username, "message": message, "time": time})
+        chatlog_collection.insert_one({"username": username, "message": message, "time": get_utc_date()})
     except:
         print("Error saving message to MongoDB")
 
@@ -153,6 +188,7 @@ def handle_message(message):
         'message': message,
         'time': time}
     emit("message", msgDict, broadcast=True)
+    update_last_seen(username)
 
 @app.route('/')
 def index():
