@@ -24,7 +24,7 @@ def update_last_seen(username, logout=False):
         return
     users_last_seen[username] = get_utc_date()
 def generate_session_id(username):
-    # Generate session ID from username and random integer
+    # Generate session ID from UUID4
     session_id = str(uuid.uuid4())
 
     users_collection.update_one({"username": username}, {"$set": {"session_id": session_id}})
@@ -51,6 +51,7 @@ def handle_connect(connectMsg):
         msgDict = {
             'username': msg['username'],
             'message': msg['message'],
+            # Convert datetime to ISO format for client-side parsing
             'time': msg['time'].isoformat(timespec='minutes')
         }
         msgArray.append(msgDict)
@@ -65,12 +66,11 @@ def handle_connect(connectMsg):
 @socketio.on('online_users')
 def online_users():
     print("Online users list requested")
-    #users = users_collection.find({"session_id": {"$ne": ""}})
     online_users = []
     for username in users_last_seen:
         last_seen_time = users_last_seen[username]
         two_minutes = timedelta(minutes=2)
-        print("Checking user: " + username + " last seen time difference: " + str(get_utc_date() - last_seen_time))
+        #print("Checking user: " + username + " last seen time difference: " + str(get_utc_date() - last_seen_time))
         if get_utc_date() - last_seen_time < two_minutes:
             online_users.append(username)
     emit("online_users", online_users, broadcast=False)
@@ -83,7 +83,7 @@ def user_ping():
         return
     username = session['username']
     update_last_seen(username)
-    print("Received ping from user: " + username)
+    #print("Received ping from user: " + username)
 
 @socketio.on('register')
 def user_register(user):
@@ -107,6 +107,7 @@ def user_register(user):
     session['username'] = username
     update_last_seen(username)
     password = ""
+
 @socketio.on('logout')
 def user_logout():
     if session['logged_in'] == False:
@@ -132,7 +133,6 @@ def user_login(user):
         else:
             print("User failed to login with sessionID: ")
 
-
     if not login_with_session_id:
         if 'username' not in user or 'password' not in user:
             print("User login attempt failed, missing username or password")
@@ -150,7 +150,6 @@ def user_login(user):
         print("User logged in: " + username)
         session['logged_in'] = True
         session['username'] = username
-        # TODO: Finish users online list based on when they were last seen online
         update_last_seen(username)
     else:
         emit("login", {'logged_in' : False}, broadcast=False)
@@ -162,13 +161,12 @@ def user_login(user):
 def handle_message(message):
     if message == "User connected!":
         return
-    
+
     if session['logged_in'] == False:
         print("User not logged in, message not sent")
         emit("error", {'logged_in' : False}, broadcast=False)
         return
 
-    #time = "[" + datetime.now().strftime("%d.%m.%Y %H:%M") + "] "
     time = get_iso_date()
     username = session['username']#message['username']
     message = message['message']
